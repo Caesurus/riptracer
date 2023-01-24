@@ -1,11 +1,11 @@
 package rip_tracer
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -348,11 +348,9 @@ func (t *Tracer) GetBaseAddress() (uintptr, error) {
 	}
 	procMaps, err := p.ProcMaps()
 	cmdline, err := p.CmdLine()
-	executableName := filepath.Base(cmdline[0])
 	for i := range procMaps {
-		log.Printf("start:%x offset:%x, pathname: %s", procMaps[i].StartAddr, procMaps[i].Offset, procMaps[i].Pathname)
-		if 0 == procMaps[i].Offset && strings.Contains(procMaps[i].Pathname, executableName) {
-			//log.Printf("start:%x offset:%x, pathname: %s", procMaps[i].StartAddr, procMaps[i].Offset, procMaps[i].Pathname)
+		if 0 == procMaps[i].Offset && strings.Contains(procMaps[i].Pathname, cmdline[0]) {
+			log.Printf("start:%x offset:%x, pathname: %s", procMaps[i].StartAddr, procMaps[i].Offset, procMaps[i].Pathname)
 			return procMaps[i].StartAddr, nil
 		}
 	}
