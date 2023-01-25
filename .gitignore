@@ -17,3 +17,8 @@ examples/2018_angstrom_product_key/activate
 examples/2018_angstrom_product_key/go.mod
 examples/2018_angstrom_product_key/go.sum
 examples/2018_angstrom_product_key/activate_crack
+examples/multithreaded/tracer
+examples/multithreaded/c_src/test_threads
+examples/multithreaded/c_src/test_threads.o
+examples/multithreaded/go.sum
+examples/multithreaded/go.mod
