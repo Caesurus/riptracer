@@ -13,5 +13,7 @@ jobs:
           go-version: '1.19.x'
       - name: Install dependencies
         run: go get .
+      - name: Run example Fork/Threaded
+        run: cd ${GITHUB_WORKSPACE}/examples/multithreaded && ./runme.sh
       - name: Run example Crackme
-        run: cd examples/2018_angstrom_product_key && ./runme.sh
+        run: cd ${GITHUB_WORKSPACE}/examples/2018_angstrom_product_key && ./runme.sh
