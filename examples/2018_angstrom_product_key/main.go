@@ -66,9 +66,9 @@ func main() {
 		tracer.EnableVerbose()
 	}
 	// Set a breakpoint at an absolute address
-	tracer.SetBreakpoint(uintptr(0x400fb8), CBKeyBreakPoint, true)
+	tracer.SetBreakpointAbsolute(uintptr(0x400fb8), CBKeyBreakPoint)
 	// Set a breakpoint at a relative address (0x40115f)
-	tracer.SetBreakpoint(uintptr(0x115f), CBPrintSerialKey, false)
+	tracer.SetBreakpointRelative(uintptr(0x115f), CBPrintSerialKey)
 	tracer.Start()
 
 }

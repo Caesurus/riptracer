@@ -445,11 +445,8 @@ func (t *Tracer) ConvertOffsetToAddress(breakAddress uintptr) uintptr {
 	return bp
 }
 
-func (t *Tracer) SetBreakpoint(breakAddress uintptr, cb CallBackFunction, absolute bool) {
+func (t *Tracer) setBreakpoint(breakAddress uintptr, cb CallBackFunction) {
 	bp := breakAddress
-	if false == absolute {
-		bp = t.ConvertOffsetToAddress(breakAddress)
-	}
 
 	breakpoint, ok := t.breakpoints[bp]
 
@@ -467,4 +464,13 @@ func (t *Tracer) SetBreakpoint(breakAddress uintptr, cb CallBackFunction, absolu
 	}
 
 	return
+}
+
+func (t *Tracer) SetBreakpointRelative(breakAddress uintptr, cb CallBackFunction) {
+	bp := t.ConvertOffsetToAddress(breakAddress)
+	t.setBreakpoint(bp, cb)
+}
+
+func (t *Tracer) SetBreakpointAbsolute(breakAddress uintptr, cb CallBackFunction) {
+	t.setBreakpoint(breakAddress, cb)
 }
