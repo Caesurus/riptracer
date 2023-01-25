@@ -14,4 +14,4 @@ jobs:
       - name: Install dependencies
         run: go get .
       - name: Run example Crackme
-        run: cd examples/2018_angstrom_product_key && ./runme.sh
+        run: cd examples/2018_angstrom_product_key && ./runme.sh && echo Done
