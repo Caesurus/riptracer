@@ -414,27 +414,3 @@ func (t *Tracer) SetBreakpoint(breakAddress uintptr, cb func(int), absolute bool
 
 	return
 }
-
-func (t *Tracer) SetBreakpointThread(pid int, breakAddress uintptr, cb func(int), absolute bool) {
-	bp := breakAddress
-	if false == absolute {
-		bp = t.ConvertOffsetToAddress(breakAddress)
-	}
-
-	breakpoint, ok := t.breakpoints[bp]
-
-	if ok {
-		log.Printf("Breakpoint at 0x%x already set, adding cb...", bp)
-		breakpoint.Callbacks = append(breakpoint.Callbacks, cb)
-	} else {
-		log.Printf("Setting Breakpoint at 0x%x", bp)
-		org := replaceCode(pid, bp, []byte{0xCC})
-
-		callBacks := make([]func(int), 0)
-		callBacks = append(callBacks, cb)
-
-		t.breakpoints[bp] = &BreakPoint{Address: bp, OriginalCode: &org, Hits: 0, Callbacks: callBacks}
-	}
-
-	return
-}
