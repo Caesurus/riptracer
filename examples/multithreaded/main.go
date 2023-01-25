@@ -28,17 +28,17 @@ func main() {
 		log.Print(parser.Usage(err))
 		return
 	}
-	var tracer *rip_tracer.Tracer
+	var tracer *riptracer.Tracer
 
 	if startCmd.Happened() {
 		log.Println("Started process")
-		tracer, err = rip_tracer.NewTracerStartCommand(*cmd_str)
+		tracer, err = riptracer.NewTracerStartCommand(*cmd_str)
 		if err != nil {
 			log.Fatalln(err)
 		}
 	} else if attachPid.Happened() {
 		log.Println("Connecting to PID:", *pidOfProcess)
-		tracer, err = rip_tracer.NewTracerFromPid(*pidOfProcess)
+		tracer, err = riptracer.NewTracerFromPid(*pidOfProcess)
 		if err != nil {
 			log.Fatalln(err)
 		}
