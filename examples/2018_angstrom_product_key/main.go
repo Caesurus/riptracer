@@ -16,7 +16,7 @@ import (
 var g_cnt = 0
 var g_serial []int32
 
-func CBKeyBreakPoint(pid int) {
+func CBKeyBreakPoint(pid int, bp rip_tracer.BreakPoint) {
 	var regs syscall.PtraceRegs
 	err := syscall.PtraceGetRegs(pid, &regs)
 	if err != nil {
@@ -34,7 +34,7 @@ func CBKeyBreakPoint(pid int) {
 	g_serial[g_cnt] = serial_char
 }
 
-func CBPrintSerialKey(pid int) {
+func CBPrintSerialKey(pid int, bp rip_tracer.BreakPoint) {
 	fmt.Printf("\nValid Serial Key = %d-%d-%d-%d-%d-%d\n", g_serial[5], g_serial[1], g_serial[2], g_serial[6], g_serial[3], g_serial[4])
 }
 
@@ -65,8 +65,10 @@ func main() {
 	if *verbose {
 		tracer.EnableVerbose()
 	}
+	// Set a breakpoint at an absolute address
 	tracer.SetBreakpoint(uintptr(0x400fb8), CBKeyBreakPoint, true)
-	tracer.SetBreakpoint(uintptr(0x40115f), CBPrintSerialKey, true)
+	// Set a breakpoint at a relative address (0x40115f)
+	tracer.SetBreakpoint(uintptr(0x115f), CBPrintSerialKey, false)
 	tracer.Start()
 
 }

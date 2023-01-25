@@ -1,6 +1,8 @@
 package rip_tracer
 
 import (
+	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -14,26 +16,50 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+type CallBackFunction func(int, BreakPoint) // CallBack Function Pointer
+
 type BreakPoint struct {
 	Address      uintptr
 	OriginalCode *[]byte
 	Hits         int
-	Callbacks    []func(int)
+	Callbacks    []CallBackFunction
 }
 
 type Tracer struct {
-	Process     *os.Process
-	ProcFS      procfs.FS
-	ws          syscall.WaitStatus
-	breakpoints map[uintptr]*BreakPoint
-	threads     map[int]bool
-	verbose     bool
+	Process          *os.Process
+	ProcFS           procfs.FS
+	ws               syscall.WaitStatus
+	breakpoints      map[uintptr]*BreakPoint
+	threads          map[int]bool
+	verbose          bool
+	exeCompareLength int
+	baseAddress      uintptr
 }
 
-func must(err error) {
+func check(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// How many bytes we want to use to compare mem to executable
+const DEFAULTEXECMPLENGTH = 32
+
+func readBytesFromFile(filePath string, length int, offset int64) []byte {
+	f, err := os.Open(filePath)
+	check(err)
+
+	_, err = f.Seek(offset, 0)
+	check(err)
+
+	data := make([]byte, length)
+	numBytes, err := f.Read(data)
+	check(err)
+	if length != numBytes {
+		log.Fatalln("Couldn't read expected number of bytes from exe file")
+	}
+
+	return data
 }
 
 func _attachToPid(pid int) (int, error) {
@@ -63,11 +89,11 @@ func NewTracerStartCommand(cmd_str string) (*Tracer, error) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Ptrace: true}
-	must(cmd.Start())
+	check(cmd.Start())
 
 	cmd.Wait() //Ignore the error, we hit our starting breakpoint trap
 
-	must(syscall.PtraceSetOptions(cmd.Process.Pid, syscall.PTRACE_O_TRACECLONE))
+	check(syscall.PtraceSetOptions(cmd.Process.Pid, syscall.PTRACE_O_TRACECLONE))
 
 	log.Printf("CMD PID: %s : %v\n", cmd_str, cmd.Process.Pid)
 	syscall.PtraceSingleStep(cmd.Process.Pid)
@@ -85,10 +111,12 @@ func NewTracerStartCommand(cmd_str string) (*Tracer, error) {
 	}
 
 	return &Tracer{
-		Process:     cmd.Process,
-		ProcFS:      procFS,
-		breakpoints: make(map[uintptr]*BreakPoint),
-		threads:     threads,
+		Process:          cmd.Process,
+		ProcFS:           procFS,
+		breakpoints:      make(map[uintptr]*BreakPoint),
+		threads:          threads,
+		exeCompareLength: DEFAULTEXECMPLENGTH,
+		baseAddress:      0,
 	}, nil
 
 }
@@ -109,13 +137,15 @@ func NewTracerFromPid(pid int) (*Tracer, error) {
 	}
 
 	all_pids, err := procFS.AllThreads(pid)
-	must(err)
+	check(err)
 
 	tracer := Tracer{
-		Process:     proc,
-		ProcFS:      procFS,
-		breakpoints: make(map[uintptr]*BreakPoint),
-		threads:     make(map[int]bool),
+		Process:          proc,
+		ProcFS:           procFS,
+		breakpoints:      make(map[uintptr]*BreakPoint),
+		threads:          make(map[int]bool),
+		exeCompareLength: DEFAULTEXECMPLENGTH,
+		baseAddress:      0,
 	}
 
 	for i := range all_pids {
@@ -126,7 +156,7 @@ func NewTracerFromPid(pid int) (*Tracer, error) {
 		for {
 			_, err := syscall.Wait4(p, &ws, syscall.WALL, nil)
 			if ws.Stopped() {
-				must(err)
+				check(err)
 				break
 			}
 			time.Sleep(time.Millisecond * 100)
@@ -138,6 +168,10 @@ func NewTracerFromPid(pid int) (*Tracer, error) {
 
 func (t *Tracer) EnableVerbose() {
 	t.verbose = true
+}
+
+func (t *Tracer) SetExeComparisonLength(length int) {
+	t.exeCompareLength = length
 }
 
 func (t *Tracer) Start() {
@@ -223,7 +257,7 @@ func (t *Tracer) Start() {
 			if t.verbose {
 				log.Printf("Ptrace exit event detected pid %v ", wpid)
 			}
-			must(syscall.PtraceCont(wpid, 0))
+			check(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_CLONE << 8):
 			if t.verbose {
@@ -231,37 +265,37 @@ func (t *Tracer) Start() {
 			}
 			newPid := t.getEventMsg(wpid)
 			t.threads[int(newPid)] = true
-			must(syscall.PtraceCont(wpid, 0))
+			check(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_FORK << 8):
 			if t.verbose {
 				log.Printf("PTrace fork event detected pid %v ", wpid)
 			}
-			must(syscall.PtraceCont(wpid, 0))
+			check(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_VFORK << 8):
 			if t.verbose {
 				log.Printf("Ptrace vfork event detected pid %v ", wpid)
 			}
-			must(syscall.PtraceCont(wpid, 0))
+			check(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_VFORK_DONE << 8):
 			if t.verbose {
 				log.Printf("Ptrace vfork done event detected pid %v ", wpid)
 			}
-			must(syscall.PtraceCont(wpid, 0))
+			check(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_EXEC << 8):
 			if t.verbose {
 				log.Printf("Ptrace exec event detected pid %v ", wpid)
 			}
-			must(syscall.PtraceCont(wpid, 0))
+			check(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_STOP << 8):
 			if t.verbose {
 				log.Printf("Ptrace stop event detected pid %v ", wpid)
 			}
-			must(syscall.PtraceCont(wpid, 0))
+			check(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP):
 			if t.verbose {
@@ -270,42 +304,44 @@ func (t *Tracer) Start() {
 			breakPoint, ok := t.breakpoints[uintptr(regs.Rip)-1]
 			if ok {
 				breakPoint.Hits += 1
-				msgId := t.getEventMsg(wpid)
-				log.Printf("PID: %d (msg:%d) Hit Breakpoint at 0x%x (%d times)", wpid, msgId, breakPoint.Address, breakPoint.Hits)
+				if t.verbose {
+					msgId := t.getEventMsg(wpid)
+					log.Printf("PID: %d (msg:%d) Hit Breakpoint at 0x%x (%d times)", wpid, msgId, breakPoint.Address, breakPoint.Hits)
+				}
 
 				replaceCode(wpid, breakPoint.Address, *breakPoint.OriginalCode)
 				regs.Rip = uint64(breakPoint.Address)
-				must(syscall.PtraceSetRegs(wpid, &regs))
+				check(syscall.PtraceSetRegs(wpid, &regs))
 
 				// Call the callback print handlers
 				for idx := range breakPoint.Callbacks {
 					cb := breakPoint.Callbacks[idx]
-					cb(wpid)
+					cb(wpid, *breakPoint)
 				}
 
 				// we need to step forward once before setting the breakpoint again
-				must(syscall.PtraceSingleStep(wpid))
+				check(syscall.PtraceSingleStep(wpid))
 				wpid, err = syscall.Wait4(wpid, &ws, syscall.WALL, nil)
-				must(err)
+				check(err)
 				// set the breakpoint back again
 				replaceCode(wpid, breakPoint.Address, []byte{0xCC})
 			} else {
 				log.Printf("Got SIGTRAP without known Breakpoint at 0x%x\n", regs.Rip)
 			}
-			must(syscall.PtraceCont(wpid, 0))
+			check(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGCHLD):
 			if t.verbose {
 				log.Printf("SIGCHLD detected pid %v ", wpid)
 			}
-			must(syscall.PtraceCont(wpid, 0))
+			check(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGSTOP):
 			if t.verbose {
 				msg := t.getEventMsg(wpid)
 				log.Printf("SIGSTOP detected pid %v, msg: %v ", wpid, msg)
 			}
-			must(syscall.PtraceCont(wpid, 0))
+			check(syscall.PtraceCont(wpid, 0))
 		case uint32(unix.SIGINT):
 			log.Println("SIGINT, start detaching and exit")
 			for p := range t.threads {
@@ -316,7 +352,7 @@ func (t *Tracer) Start() {
 		default:
 			y := ws.StopSignal()
 			log.Printf("Child stopped for unknown reasons pid %v status %v signal %d", wpid, ws, y)
-			must(syscall.PtraceCont(wpid, int(ws.StopSignal())))
+			check(syscall.PtraceCont(wpid, int(ws.StopSignal())))
 		}
 
 	}
@@ -327,29 +363,47 @@ func (t *Tracer) continueAllThreads() {
 		if t.verbose {
 			log.Printf("Setting configuration on pid: %d", p)
 		}
-		must(syscall.PtraceSetOptions(p, syscall.PTRACE_O_TRACECLONE))
-		must(syscall.PtraceCont(p, 0))
+		check(syscall.PtraceSetOptions(p, syscall.PTRACE_O_TRACECLONE))
+		check(syscall.PtraceCont(p, 0))
 	}
 }
 
 func (*Tracer) getEventMsg(wpid int) uint {
 	msgID, err := syscall.PtraceGetEventMsg(wpid)
-	must(err)
+	check(err)
 	return msgID
 }
 
 func (t *Tracer) GetBaseAddress() (uintptr, error) {
-	p, err := t.ProcFS.Proc(t.Process.Pid)
+	if t.baseAddress > 0 {
+		return t.baseAddress, nil
+	} else {
+		p, err := t.ProcFS.Proc(t.Process.Pid)
 
-	if err != nil {
-		log.Fatalln(err)
-	}
-	procMaps, err := p.ProcMaps()
-	cmdline, err := p.CmdLine()
-	for i := range procMaps {
-		if 0 == procMaps[i].Offset && strings.Contains(procMaps[i].Pathname, cmdline[0]) {
-			log.Printf("start:%x offset:%x, pathname: %s", procMaps[i].StartAddr, procMaps[i].Offset, procMaps[i].Pathname)
-			return procMaps[i].StartAddr, nil
+		if err != nil {
+			log.Fatalln(err)
+		}
+		procMaps, err := p.ProcMaps()
+		exePath := fmt.Sprintf("/proc/%d/exe", t.Process.Pid)
+		exeMemPath := fmt.Sprintf("/proc/%d/mem", t.Process.Pid)
+
+		exeData := readBytesFromFile(exePath, t.exeCompareLength, 0)
+
+		for i := range procMaps {
+			// Only check if we're at a base address
+			if 0 == procMaps[i].Offset {
+				if int(procMaps[i].EndAddr-procMaps[i].StartAddr) > t.exeCompareLength {
+					memData := readBytesFromFile(exeMemPath, t.exeCompareLength, int64(procMaps[i].StartAddr))
+
+					if 0 == bytes.Compare(exeData, memData) {
+						if t.verbose {
+							log.Printf("start:%x offset:%x, pathname: %s", procMaps[i].StartAddr, procMaps[i].Offset, procMaps[i].Pathname)
+						}
+						t.baseAddress = procMaps[i].StartAddr
+						return t.baseAddress, nil
+					}
+				}
+			}
 		}
 	}
 
@@ -371,12 +425,12 @@ func (t *Tracer) GetMemMaps() ([]*procfs.ProcMap, error) {
 func replaceCode(pid int, breakpoint uintptr, code []byte) []byte {
 	original := make([]byte, len(code))
 	_, err := syscall.PtracePeekData(pid, breakpoint, original)
-	must(err)
+	check(err)
 	//log.Printf("peek: cnt: %d, err: %v, original %v", cnt, err, original)
 
 	_, err = syscall.PtracePokeData(pid, breakpoint, code)
 	//log.Printf("poke: cnt: %d, err: %v", cnt, err)
-	must(err)
+	check(err)
 
 	return original
 }
@@ -391,7 +445,7 @@ func (t *Tracer) ConvertOffsetToAddress(breakAddress uintptr) uintptr {
 	return bp
 }
 
-func (t *Tracer) SetBreakpoint(breakAddress uintptr, cb func(int), absolute bool) {
+func (t *Tracer) SetBreakpoint(breakAddress uintptr, cb CallBackFunction, absolute bool) {
 	bp := breakAddress
 	if false == absolute {
 		bp = t.ConvertOffsetToAddress(breakAddress)
@@ -406,7 +460,7 @@ func (t *Tracer) SetBreakpoint(breakAddress uintptr, cb func(int), absolute bool
 		log.Printf("Setting Breakpoint at 0x%x", bp)
 		org := replaceCode(t.Process.Pid, bp, []byte{0xCC})
 
-		callBacks := make([]func(int), 0)
+		callBacks := make([]CallBackFunction, 0)
 		callBacks = append(callBacks, cb)
 
 		t.breakpoints[bp] = &BreakPoint{Address: bp, OriginalCode: &org, Hits: 0, Callbacks: callBacks}
