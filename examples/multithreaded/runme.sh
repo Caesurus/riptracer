@@ -18,7 +18,7 @@ go clean
 echo "Building go code"
 go build
 
-if [ "$EUID" -ne 0 ]
+if [ "$EUID" -eq 0 ]; then
     echo "Run the application via attach"
     ./c_src/test_threads &
     PID=$!
