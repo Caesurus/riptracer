@@ -11,7 +11,7 @@ chmod +x activate
 echo "Initializing go module"
 rm -rf go.mod go.sum
 go mod init activate_crack
-go mod edit -replace github.com/caesurus/rip_tracer=../../../rip_tracer
+go mod edit -replace github.com/caesurus/riptracer=../../../riptracer
 go mod tidy
 go clean 
 echo "Building go code"

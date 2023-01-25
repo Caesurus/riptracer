@@ -12,7 +12,7 @@ OFFSET=$(objdump -D test_threads|grep \<fflush@plt\>|grep call|cut -d ':' -f1|xa
 cd ${SCRIPT_DIR}
 rm -rf go.mod go.sum
 go mod init tracer
-go mod edit -replace github.com/caesurus/rip_tracer=../../../rip_tracer
+go mod edit -replace github.com/caesurus/riptracer=../../../riptracer
 go mod tidy
 go clean 
 echo "Building go code"

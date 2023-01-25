@@ -1,4 +1,4 @@
-package rip_tracer
+package riptracer
 
 import "fmt"
 

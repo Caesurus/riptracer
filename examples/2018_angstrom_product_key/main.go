@@ -10,13 +10,13 @@ import (
 	"syscall"
 
 	"github.com/akamensky/argparse"
-	"github.com/caesurus/rip_tracer"
+	"github.com/caesurus/riptracer"
 )
 
 var g_cnt = 0
 var g_serial []int32
 
-func CBKeyBreakPoint(pid int, bp rip_tracer.BreakPoint) {
+func CBKeyBreakPoint(pid int, bp riptracer.BreakPoint) {
 	var regs syscall.PtraceRegs
 	err := syscall.PtraceGetRegs(pid, &regs)
 	if err != nil {
@@ -34,7 +34,7 @@ func CBKeyBreakPoint(pid int, bp rip_tracer.BreakPoint) {
 	g_serial[g_cnt] = serial_char
 }
 
-func CBPrintSerialKey(pid int, bp rip_tracer.BreakPoint) {
+func CBPrintSerialKey(pid int, bp riptracer.BreakPoint) {
 	fmt.Printf("\nValid Serial Key = %d-%d-%d-%d-%d-%d\n", g_serial[5], g_serial[1], g_serial[2], g_serial[6], g_serial[3], g_serial[4])
 }
 
@@ -50,13 +50,13 @@ func main() {
 		log.Print(parser.Usage(err))
 		return
 	}
-	var tracer *rip_tracer.Tracer
+	var tracer *riptracer.Tracer
 
 	g_serial = make([]int32, 10)
 
 	if startCmd.Happened() {
 		log.Println("Started process")
-		tracer, err = rip_tracer.NewTracerStartCommand(*cmd_str)
+		tracer, err = riptracer.NewTracerStartCommand(*cmd_str)
 		if err != nil {
 			log.Fatalln(err)
 		}

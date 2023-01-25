@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/akamensky/argparse"
-	"github.com/caesurus/rip_tracer"
+	"github.com/caesurus/riptracer"
 )
 
 func main() {
@@ -28,17 +28,17 @@ func main() {
 		log.Print(parser.Usage(err))
 		return
 	}
-	var tracer *rip_tracer.Tracer
+	var tracer *riptracer.Tracer
 
 	if startCmd.Happened() {
 		log.Println("Started process")
-		tracer, err = rip_tracer.NewTracerStartCommand(*cmd_str)
+		tracer, err = riptracer.NewTracerStartCommand(*cmd_str)
 		if err != nil {
 			log.Fatalln(err)
 		}
 	} else if attachPid.Happened() {
 		log.Println("Connecting to PID:", *pidOfProcess)
-		tracer, err = rip_tracer.NewTracerFromPid(*pidOfProcess)
+		tracer, err = riptracer.NewTracerFromPid(*pidOfProcess)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -51,8 +51,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	tracer.SetBreakpointRelative(uintptr(breakPointInt), rip_tracer.CBPrintRegisters)
-	tracer.SetBreakpointRelative(uintptr(breakPointInt), rip_tracer.CBPrintStack)
-	tracer.SetBreakpointRelative(uintptr(breakPointInt), rip_tracer.CBFunctionArgs)
+	tracer.SetBreakpointRelative(uintptr(breakPointInt), riptracer.CBPrintRegisters)
+	tracer.SetBreakpointRelative(uintptr(breakPointInt), riptracer.CBPrintStack)
+	tracer.SetBreakpointRelative(uintptr(breakPointInt), riptracer.CBFunctionArgs)
 	tracer.Start()
 }
