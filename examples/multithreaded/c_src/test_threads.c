@@ -10,7 +10,7 @@ int i = 2;
 void* foo(){
   // Print value received as argument:
   printf("Value recevied as argument in starting routine: ");
-  for(int i=0; i < 3; i++){ 
+  for(int i=0; i < 1; i++){ 
     printf(".");
     fflush(stdout);
     sleep(1);
