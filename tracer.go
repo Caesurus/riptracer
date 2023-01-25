@@ -1,7 +1,6 @@
 package rip_tracer
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -238,35 +237,30 @@ func (t *Tracer) Start() {
 			if t.verbose {
 				log.Printf("PTrace fork event detected pid %v ", wpid)
 			}
-			t.getEventMsg(wpid)
 			must(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_VFORK << 8):
 			if t.verbose {
 				log.Printf("Ptrace vfork event detected pid %v ", wpid)
 			}
-			t.getEventMsg(wpid)
 			must(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_VFORK_DONE << 8):
 			if t.verbose {
 				log.Printf("Ptrace vfork done event detected pid %v ", wpid)
 			}
-			t.getEventMsg(wpid)
 			must(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_EXEC << 8):
 			if t.verbose {
 				log.Printf("Ptrace exec event detected pid %v ", wpid)
 			}
-			t.getEventMsg(wpid)
 			must(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_STOP << 8):
 			if t.verbose {
 				log.Printf("Ptrace stop event detected pid %v ", wpid)
 			}
-			t.getEventMsg(wpid)
 			must(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP):
@@ -301,12 +295,16 @@ func (t *Tracer) Start() {
 			must(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGCHLD):
-			//log.Printf("SIGCHLD detected pid %v ", wpid)
+			if t.verbose {
+				log.Printf("SIGCHLD detected pid %v ", wpid)
+			}
 			must(syscall.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGSTOP):
-			//msg := t.getEventMsg(wpid)
-			//log.Printf("SIGSTOP detected pid %v, msg: %v ", wpid, msg)
+			if t.verbose {
+				msg := t.getEventMsg(wpid)
+				log.Printf("SIGSTOP detected pid %v, msg: %v ", wpid, msg)
+			}
 			must(syscall.PtraceCont(wpid, 0))
 		case uint32(unix.SIGINT):
 			log.Println("SIGINT, start detaching and exit")
