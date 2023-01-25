@@ -9,7 +9,7 @@ wget https://github.com/Caesurus/usercorn_examples/raw/master/2018_angstrom_prod
 chmod +x activate
 
 echo "Initializing go module"
-rm go.mod go.sum
+rm -rf go.mod go.sum
 go mod init activate_crack
 go mod edit -replace github.com/caesurus/rip_tracer=../../../rip_tracer
 go mod tidy

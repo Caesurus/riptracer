@@ -13,3 +13,7 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+examples/2018_angstrom_product_key/activate
+examples/2018_angstrom_product_key/go.mod
+examples/2018_angstrom_product_key/go.sum
+examples/2018_angstrom_product_key/activate_crack
