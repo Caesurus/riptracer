@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/akamensky/argparse"
-	"github.com/caesurus/rip_tracer"
+	"github.com/caesurus/riptracer"
 )
 
 var g_cnt = 0

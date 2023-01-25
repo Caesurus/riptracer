@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/akamensky/argparse"
-	"github.com/caesurus/rip_tracer"
+	"github.com/caesurus/riptracer"
 )
 
 func main() {
