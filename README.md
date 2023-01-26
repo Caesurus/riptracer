@@ -1,5 +1,5 @@
-# rip_tracer
-Execution tracer written in `go`. Think strace/ltrace for arbitrary code locations.
+# riptracer
+Execution tracer written in `go`. Think strace/ltrace for arbitrary code locations. Set breakpoints, manipulate memory/registers, etc...
 
 ## Why?
 
@@ -9,7 +9,7 @@ I've been a longtime fan of [`usercorn`](https://github.com/lunixbochs/usercorn)
 
 ## Why not just use `gdb`?
 
-With the power of `gdb` and some `gdb scripts` we'd be able to do similar functionality, but we'd need `gdb` on our target system, along with python for the scripting etc... All of which is fine, and totally possible, but a nicely compiled `go` binary can be deployed without having to worry about the dependencies needed. I want to spend time learning and debugging, not cross-compiling and in dependency hell. The real reason is what I already gave, I wanted to know how debuggers in linux function. What better way to implement one yourself.
+With the power of `gdb` and some `gdb scripts` we'd be able to do similar functionality, but we'd need `gdb` on our target system, along with python for the scripting etc... All of which is fine, and totally possible, but a nicely compiled `go` binary can be deployed without having to worry about the dependencies needed. I want to spend time learning and debugging, not cross-compiling and in dependency hell. The real reason is what I already gave, I wanted to know how debuggers work in linux. What better way to implement one yourself.
 
 ## Disclaimer
 
