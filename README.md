@@ -1,4 +1,8 @@
+![Example Tests](https://github.com/caesurus/riptracer/actions/workflows/examples.yaml/badge.svg)
+
+
 # riptracer
+
 Execution tracer written in `go`. Think strace/ltrace for arbitrary code locations. Set breakpoints, manipulate memory/registers, etc...
 
 ## Why?
