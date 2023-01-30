@@ -19,18 +19,6 @@ void* foo(){
   pthread_exit(&i);
 }
 
-
-void forkexample()
-{
-    // child process because return value zero
-    if (fork() == 0)
-        printf("Hello from Child!\n");
-  
-    // parent process because return value non-zero.
-    else
-        printf("Hello from Parent!\n");
-}
-
 int main(void){
   // Declare variable for thread's ID:
   pthread_t id;
@@ -41,8 +29,6 @@ int main(void){
   pthread_create(&id, NULL, foo, &j);
   pthread_create(&id2, NULL, foo, &j);
   pthread_create(&id3, NULL, foo, &j);
-
-  forkexample();
 
   system("echo hello from a system call");
 

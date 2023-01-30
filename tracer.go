@@ -34,6 +34,7 @@ type Tracer struct {
 	verbose          bool
 	exeCompareLength int
 	baseAddress      uintptr
+	ptraceOptions    int
 }
 
 func check(err error) {
@@ -117,6 +118,7 @@ func NewTracerStartCommand(cmd_str string) (*Tracer, error) {
 		threads:          threads,
 		exeCompareLength: DEFAULTEXECMPLENGTH,
 		baseAddress:      0,
+		ptraceOptions:    syscall.PTRACE_O_TRACECLONE,
 	}, nil
 
 }
@@ -146,6 +148,7 @@ func NewTracerFromPid(pid int) (*Tracer, error) {
 		threads:          make(map[int]bool),
 		exeCompareLength: DEFAULTEXECMPLENGTH,
 		baseAddress:      0,
+		ptraceOptions:    syscall.PTRACE_O_TRACECLONE,
 	}
 
 	for i := range all_pids {
@@ -173,7 +176,19 @@ func (t *Tracer) EnableVerbose() {
 func (t *Tracer) SetExeComparisonLength(length int) {
 	t.exeCompareLength = length
 }
+func (t *Tracer) SetFollowForks(enable bool) {
 
+	if enable {
+		t.ptraceOptions = t.ptraceOptions | syscall.PTRACE_EVENT_FORK | syscall.PTRACE_EVENT_VFORK
+	} else {
+		t.ptraceOptions = t.ptraceOptions & ^(syscall.PTRACE_EVENT_FORK | syscall.PTRACE_EVENT_VFORK)
+	}
+
+	if t.verbose {
+		log.Printf("SetFollowForks: %t, 0x%x", enable, t.ptraceOptions)
+	}
+
+}
 func (t *Tracer) Start() {
 	var ws syscall.WaitStatus
 	var regs syscall.PtraceRegs
@@ -363,7 +378,7 @@ func (t *Tracer) continueAllThreads() {
 		if t.verbose {
 			log.Printf("Setting configuration on pid: %d", p)
 		}
-		check(syscall.PtraceSetOptions(p, syscall.PTRACE_O_TRACECLONE))
+		check(syscall.PtraceSetOptions(p, t.ptraceOptions))
 		check(syscall.PtraceCont(p, 0))
 	}
 }

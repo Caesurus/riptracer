@@ -53,14 +53,17 @@ func main() {
 		tracer.EnableVerbose()
 	}
 
+	tracer.EnableVerbose()
+
 	breakPointInt, err := strconv.ParseInt(*breakPointStr, 16, 64)
 	if err != nil {
 		panic(err)
 	}
 	tracer.SetBreakpointRelative(uintptr(breakPointInt), riptracer.CBPrintRegisters)
 	tracer.SetBreakpointRelative(uintptr(breakPointInt), riptracer.CBPrintStack)
-	tracer.SetBreakpointRelative(uintptr(breakPointInt), riptracer.CBFunctionArgs)
 	tracer.SetBreakpointRelative(uintptr(breakPointInt), CBHits)
+	tracer.SetFollowForks(true)
+
 	tracer.Start()
 
 	if gHit == 0 {

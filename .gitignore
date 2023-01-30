@@ -22,3 +22,8 @@ examples/multithreaded/c_src/test_threads
 examples/multithreaded/c_src/test_threads.o
 examples/multithreaded/go.sum
 examples/multithreaded/go.mod
+examples/forked/tracer
+examples/forked/c_src/test_forks
+examples/forked/c_src/test_forks.o
+examples/forked/go.sum
+examples/forked/go.mod

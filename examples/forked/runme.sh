@@ -7,7 +7,7 @@ cd ${SCRIPT_DIR}/c_src
 echo "Compiling C application"
 make clean && make 
 
-OFFSET=$(objdump -D test_threads|grep \<fflush@plt\>|grep call|cut -d ':' -f1|xargs)
+OFFSET=$(objdump -D test_forks|grep \<fflush@plt\>|grep call|cut -d ':' -f1|xargs)
 
 cd ${SCRIPT_DIR}
 rm -rf go.mod go.sum
@@ -20,14 +20,11 @@ go build
 
 if [ "$EUID" -eq 0 ]; then
     echo "Run the application via attach"
-    ./c_src/test_threads &
+    ./c_src/test_forks &
     PID=$!
     ./tracer attach --breakpoint "${OFFSET}" -p ${PID}
     echo "Done"
 fi
 
 echo "Run the application via start"
-./tracer start --breakpoint "${OFFSET}" -c ./c_src/test_threads
-echo "Done"
-
-
+./tracer start --breakpoint "${OFFSET}" -c ./c_src/test_forks
