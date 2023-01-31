@@ -1,4 +1,4 @@
-module github.com/caesurus/rip_tracer
+module github.com/caesurus/riptracer
 
 go 1.19
 
