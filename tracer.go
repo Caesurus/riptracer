@@ -46,6 +46,8 @@ func check(err error) {
 // How many bytes we want to use to compare mem to executable
 const DEFAULTEXECMPLENGTH = 32
 
+var shutdownFlag = false
+
 func readBytesFromFile(filePath string, length int, offset int64) []byte {
 	f, err := os.Open(filePath)
 	check(err)
@@ -203,8 +205,13 @@ func (t *Tracer) Start() {
 			switch sig {
 			case syscall.SIGTERM, syscall.SIGINT:
 				log.Println("Got SIGTERM/SIGINT SIGNAL")
-				//Send our main signal handler a USR2 signal
+				shutdownFlag = true
+				//Send our main signal handler a USR2 signal, this will cause a blocking wait to return
 				syscall.Kill(t.Process.Pid, syscall.SIGUSR2)
+				// Give 5 seconds to shut down gracefully
+				time.Sleep(5 * time.Second)
+				log.Println("No exit detected yet, calling Exit")
+				os.Exit(1)
 			}
 		}
 	}()
@@ -225,8 +232,7 @@ func (t *Tracer) Start() {
 			log.Fatalln("ERROR: ", err)
 		}
 
-		if ws.StopSignal() == syscall.SIGUSR2 {
-
+		if shutdownFlag {
 			log.Printf("%sDisable all breakpoints... %s", Red, Reset)
 			for b := range t.breakpoints {
 				breakPoint := t.breakpoints[b]
@@ -358,12 +364,18 @@ func (t *Tracer) Start() {
 			}
 			check(syscall.PtraceCont(wpid, 0))
 		case uint32(unix.SIGINT):
-			log.Println("SIGINT, start detaching and exit")
-			for p := range t.threads {
-				err = syscall.PtraceDetach(p)
-				log.Printf("PID %d Detach returned: %v", p, err)
+			if wpid == t.Process.Pid {
+				log.Printf("SIGINT on PID %d, Start detaching and exit", wpid)
+				for p := range t.threads {
+					err = syscall.PtraceDetach(p)
+					log.Printf("PID %d Detach returned: %v", p, err)
+				}
+				os.Exit(0)
+			} else {
+				log.Printf("SIGINT on child PID %d", wpid)
+				check(syscall.PtraceCont(wpid, 0))
 			}
-			os.Exit(0)
+
 		default:
 			y := ws.StopSignal()
 			log.Printf("Child stopped for unknown reasons pid %v status %v signal %d", wpid, ws, y)
