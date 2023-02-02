@@ -46,6 +46,8 @@ func check(err error) {
 // How many bytes we want to use to compare mem to executable
 const DEFAULTEXECMPLENGTH = 32
 
+var shutdownFlag = false
+
 func readBytesFromFile(filePath string, length int, offset int64) []byte {
 	f, err := os.Open(filePath)
 	check(err)
@@ -203,8 +205,13 @@ func (t *Tracer) Start() {
 			switch sig {
 			case syscall.SIGTERM, syscall.SIGINT:
 				log.Println("Got SIGTERM/SIGINT SIGNAL")
-				//Send our main signal handler a USR2 signal
+				shutdownFlag = true
+				//Send our main signal handler a USR2 signal, this will cause a blocking wait to return
 				syscall.Kill(t.Process.Pid, syscall.SIGUSR2)
+				// Give 5 seconds to shut down gracefully
+				time.Sleep(5 * time.Second)
+				log.Println("No exit detected yet, calling Exit")
+				os.Exit(1)
 			}
 		}
 	}()
@@ -225,8 +232,7 @@ func (t *Tracer) Start() {
 			log.Fatalln("ERROR: ", err)
 		}
 
-		if ws.StopSignal() == syscall.SIGUSR2 {
-
+		if shutdownFlag {
 			log.Printf("%sDisable all breakpoints... %s", Red, Reset)
 			for b := range t.breakpoints {
 				breakPoint := t.breakpoints[b]
