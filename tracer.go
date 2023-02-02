@@ -364,12 +364,18 @@ func (t *Tracer) Start() {
 			}
 			check(syscall.PtraceCont(wpid, 0))
 		case uint32(unix.SIGINT):
-			log.Println("SIGINT, start detaching and exit")
-			for p := range t.threads {
-				err = syscall.PtraceDetach(p)
-				log.Printf("PID %d Detach returned: %v", p, err)
+			if wpid == t.Process.Pid {
+				log.Printf("SIGINT on PID %d, Start detaching and exit", wpid)
+				for p := range t.threads {
+					err = syscall.PtraceDetach(p)
+					log.Printf("PID %d Detach returned: %v", p, err)
+				}
+				os.Exit(0)
+			} else {
+				log.Printf("SIGINT on child PID %d", wpid)
+				check(syscall.PtraceCont(wpid, 0))
 			}
-			os.Exit(0)
+
 		default:
 			y := ws.StopSignal()
 			log.Printf("Child stopped for unknown reasons pid %v status %v signal %d", wpid, ws, y)
