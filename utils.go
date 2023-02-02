@@ -1,6 +1,34 @@
 package riptracer
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+)
+
+func findNamedMatches(regex *regexp.Regexp, str string) map[string]string {
+	match := regex.FindStringSubmatch(str)
+
+	results := map[string]string{}
+	for i, name := range match {
+		results[regex.SubexpNames()[i]] = name
+	}
+	return results
+}
+
+func parseNumbers(input string) ([]int, error) {
+	strNums := strings.Fields(input)
+	nums := make([]int, 0, len(strNums))
+	for _, strNum := range strNums {
+		num, err := strconv.Atoi(strNum)
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing number: %v", err)
+		}
+		nums = append(nums, num)
+	}
+	return nums, nil
+}
 
 func Dump(buff []byte) {
 	n := len(buff)
@@ -25,7 +53,7 @@ func Dump(buff []byte) {
 		// Print hex
 		for j := 0; j < rowcount; j++ {
 			fmt.Printf("%02x ", buff[i+j])
-			if j == (rowcount/2)-1{
+			if j == (rowcount/2)-1 {
 				fmt.Printf(" ")
 			}
 		}

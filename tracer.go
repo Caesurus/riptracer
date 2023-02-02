@@ -1,12 +1,14 @@
 package riptracer
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"os/signal"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -31,6 +33,7 @@ type Tracer struct {
 	ws               syscall.WaitStatus
 	breakpoints      map[uintptr]*BreakPoint
 	threads          map[int]bool
+	ignoredPids      map[int]bool
 	verbose          bool
 	exeCompareLength int
 	baseAddress      uintptr
@@ -121,6 +124,7 @@ func NewTracerStartCommand(cmd_str string) (*Tracer, error) {
 		exeCompareLength: DEFAULTEXECMPLENGTH,
 		baseAddress:      0,
 		ptraceOptions:    syscall.PTRACE_O_TRACECLONE,
+		ignoredPids:      make(map[int]bool),
 	}, nil
 
 }
@@ -151,6 +155,7 @@ func NewTracerFromPid(pid int) (*Tracer, error) {
 		exeCompareLength: DEFAULTEXECMPLENGTH,
 		baseAddress:      0,
 		ptraceOptions:    syscall.PTRACE_O_TRACECLONE,
+		ignoredPids:      make(map[int]bool),
 	}
 
 	for i := range all_pids {
@@ -203,8 +208,12 @@ func (t *Tracer) Start() {
 		for {
 			sig := <-sig_chan
 			switch sig {
-			case syscall.SIGTERM, syscall.SIGINT:
-				log.Println("Got SIGTERM/SIGINT SIGNAL")
+			case syscall.SIGINT:
+				log.Println("Got SIGINT SIGNAL")
+				t.input()
+
+			case syscall.SIGTERM:
+				log.Println("Got SIGTERM SIGNAL")
 				shutdownFlag = true
 				//Send our main signal handler a USR2 signal, this will cause a blocking wait to return
 				syscall.Kill(t.Process.Pid, syscall.SIGUSR2)
@@ -227,10 +236,7 @@ func (t *Tracer) Start() {
 			log.Printf("PPID:%d / PID:%d wait4 returned... 0x%x, %v, %v, %v\n", t.Process.Pid, wpid, ws, ws.StopSignal(), ws.TrapCause(), err)
 			log.Printf("-> signal: 0x%x\n", (ws>>8)&0xFF)
 		}
-
-		if err != nil {
-			log.Fatalln("ERROR: ", err)
-		}
+		check(err)
 
 		if shutdownFlag {
 			log.Printf("%sDisable all breakpoints... %s", Red, Reset)
@@ -239,8 +245,14 @@ func (t *Tracer) Start() {
 				replaceCode(wpid, breakPoint.Address, *breakPoint.OriginalCode)
 			}
 			log.Printf("%sDetaching from Process...%s", Red, Reset)
-			syscall.PtraceDetach(wpid)
+			syscall.PtraceDetach(t.Process.Pid)
 			os.Exit(0)
+		}
+
+		// Check whether it's a pid we're ignoring
+		if t.ignoredPids[wpid] {
+			check(syscall.PtraceCont(wpid, 0))
+			continue
 		}
 
 		t.threads[wpid] = true
@@ -500,4 +512,43 @@ func (t *Tracer) SetBreakpointRelative(breakAddress uintptr, cb CallBackFunction
 
 func (t *Tracer) SetBreakpointAbsolute(breakAddress uintptr, cb CallBackFunction) {
 	t.setBreakpoint(breakAddress, cb)
+}
+
+func (t *Tracer) input() {
+	fmt.Printf("\n(C)ontinue, (I)gnore <thread/pid> or (Q)uit?\n")
+	var cmdRegMatch = regexp.MustCompile(`^(?P<cmd>.)[\s+]?(?P<args>.*)$`)
+
+	for {
+		fmt.Printf("> ")
+		input := getUserInput()
+		if 0 < len(input) {
+			result := findNamedMatches(cmdRegMatch, input)
+			switch strings.ToUpper(result["cmd"]) {
+			case "C":
+				return
+			case "I":
+				pids, err := parseNumbers(result["args"])
+				if err == nil {
+					for p := range pids {
+						log.Println("Adding pid to ignore list:", pids[p])
+						t.ignoredPids[pids[p]] = true
+					}
+				}
+			case "Q":
+				shutdownFlag = true
+				syscall.Kill(t.Process.Pid, syscall.SIGUSR2)
+
+			default:
+				fmt.Printf("Unexpected input %s\n", input)
+			}
+			return
+		}
+	}
+}
+
+func getUserInput() string {
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	input := scanner.Text()
+	return input
 }
