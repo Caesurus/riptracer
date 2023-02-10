@@ -69,36 +69,56 @@ func parsePlt(f *elf.File) []elf.Symbol {
 }
 
 type SymbolResolver struct {
-	elfFile *elf.File
-	PLT     []elf.Symbol
+	PLT        []elf.Symbol
+	pltSection *elf.Section
 }
 
 func NewSymbolResolver(filepath string) (*SymbolResolver, error) {
-
 	f, err := elf.Open(filepath)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	s := SymbolResolver{elfFile: f}
+	pltSect := f.Section(".plt")
+	if pltSect == nil {
+		return nil, fmt.Errorf("Couldn't find dynstr")
+	}
+
+	s := SymbolResolver{pltSection: pltSect}
 	s.PLT = parsePlt(f)
 	return &s, nil
 }
 
 func (s *SymbolResolver) GetPLTOffsetBySymName(symName string) (uintptr, error) {
-	pltSect := s.elfFile.Section(".plt")
-	if pltSect == nil {
-		return 0, fmt.Errorf("Couldn't find dynstr")
-	}
-
 	for i := range s.PLT {
 		sym := s.PLT[i]
 		if sym.Name == symName {
-			addrOffset := pltSect.Addr + pltSect.Entsize + (uint64(i) * pltSect.Entsize)
+			addrOffset := s.pltSection.Addr + s.pltSection.Entsize + (uint64(i) * s.pltSection.Entsize)
 			return uintptr(addrOffset), nil
 		}
 	}
 
 	return 0, fmt.Errorf("Couldn't find symName in file")
+}
+
+func (s *SymbolResolver) GetPLTSymNameByOffset(offset uint64) (string, error) {
+
+	/*
+		idx := (offset - (s.pltSection.Addr + s.pltSection.Entsize)) / s.pltSection.Entsize
+
+		if idx <= uint64(len(s.PLT)) {
+			sym := s.PLT[idx]
+			return sym.Name, nil
+		}
+	*/
+	for i := range s.PLT {
+		addrOffset := s.pltSection.Addr + s.pltSection.Entsize + (uint64(i) * s.pltSection.Entsize)
+		if offset == addrOffset {
+			sym := s.PLT[i]
+			return sym.Name, nil
+		}
+	}
+
+	return "", fmt.Errorf("Couldn't find symbol at offset 0x%8.8x", offset)
 }
