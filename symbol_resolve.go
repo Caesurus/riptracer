@@ -69,7 +69,6 @@ func parsePlt(f *elf.File) []elf.Symbol {
 }
 
 type SymbolResolver struct {
-	elfFile    *elf.File
 	PLT        []elf.Symbol
 	pltSection *elf.Section
 }
@@ -86,7 +85,7 @@ func NewSymbolResolver(filepath string) (*SymbolResolver, error) {
 		return nil, fmt.Errorf("Couldn't find dynstr")
 	}
 
-	s := SymbolResolver{elfFile: f, pltSection: pltSect}
+	s := SymbolResolver{pltSection: pltSect}
 	s.PLT = parsePlt(f)
 	return &s, nil
 }
