@@ -63,18 +63,25 @@ func parsePlt(f *elf.File) []elf.Symbol {
 	return plt
 }
 
-type SymbolReslover struct {
+type SymbolResolver struct {
 	elfFile *elf.File
 	PLT     []elf.Symbol
 }
 
-func NewSymbolResolver(f *elf.File) SymbolReslover {
-	s := SymbolReslover{elfFile: f}
+func NewSymbolResolver(filepath string) (*SymbolResolver, error) {
+
+	f, err := elf.Open(filepath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	s := SymbolResolver{elfFile: f}
 	s.PLT = parsePlt(f)
-	return s
+	return &s, nil
 }
 
-func (s *SymbolReslover) GetPLTOffsetBySymName(symName string) (uintptr, error) {
+func (s *SymbolResolver) GetPLTOffsetBySymName(symName string) (uintptr, error) {
 	pltSect := s.elfFile.Section(".plt")
 	if pltSect == nil {
 		return 0, fmt.Errorf("Couldn't find dynstr")
