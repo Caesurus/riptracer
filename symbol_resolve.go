@@ -58,6 +58,11 @@ func parsePlt(f *elf.File) []elf.Symbol {
 
 		idx := rela.R_info.Sym - 1
 		sym := dynSyms[idx]
+		demangledName, err := demangle.ToString(sym.Name, demangle.Option(demangle.NoParams), demangle.Option(demangle.NoTemplateParams), demangle.Option(demangle.LLVMStyle))
+		if err != nil {
+			demangledName = sym.Name
+		}
+		sym.Name = demangledName
 		plt = append(plt, sym)
 	}
 	return plt
@@ -89,12 +94,7 @@ func (s *SymbolResolver) GetPLTOffsetBySymName(symName string) (uintptr, error) 
 
 	for i := range s.PLT {
 		sym := s.PLT[i]
-		demangledName, err := demangle.ToString(sym.Name, demangle.Option(demangle.NoParams), demangle.Option(demangle.NoTemplateParams))
-		if err != nil {
-			demangledName = sym.Name
-		}
-
-		if demangledName == symName {
+		if sym.Name == symName {
 			addrOffset := pltSect.Addr + pltSect.Entsize + (uint64(i) * pltSect.Entsize)
 			return uintptr(addrOffset), nil
 		}
