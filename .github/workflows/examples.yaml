@@ -17,5 +17,7 @@ jobs:
         run: cd ${GITHUB_WORKSPACE}/examples/multithreaded && chmod +x ./runme.sh && ./runme.sh
       - name: Run example Forked
         run: cd ${GITHUB_WORKSPACE}/examples/forked && chmod +x ./runme.sh && ./runme.sh
+      - name: Run example Forky
+        run: cd ${GITHUB_WORKSPACE}/examples/forky && chmod +x ./runme.sh && ./runme.sh
       - name: Run example Crackme
         run: cd ${GITHUB_WORKSPACE}/examples/2018_angstrom_product_key && chmod +x ./runme.sh && ./runme.sh

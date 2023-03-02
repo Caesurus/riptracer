@@ -359,7 +359,7 @@ func (t *Tracer) Start() {
 				// set the breakpoint back again
 				replaceCode(wpid, breakPoint.Address, []byte{0xCC})
 			} else {
-				log.Printf("Got SIGTRAP without known Breakpoint at 0x%x\n", regs.Rip)
+				//log.Printf("Got SIGTRAP without known Breakpoint at 0x%x\n", regs.Rip)
 			}
 			check(syscall.PtraceCont(wpid, 0))
 

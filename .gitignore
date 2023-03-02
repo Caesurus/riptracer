@@ -27,3 +27,6 @@ examples/forked/c_src/test_forks
 examples/forked/c_src/test_forks.o
 examples/forked/go.sum
 examples/forked/go.mod
+examples/forky/go.mod
+examples/forky/go.sum
+examples/forky/tracer
