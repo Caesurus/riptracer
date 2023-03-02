@@ -18,5 +18,5 @@ With the power of `gdb` and some `gdb scripts` we'd be able to do similar functi
 
 ## Disclaimer
 
-This is a toy project, I'll updated for as long as I find it useful and interesting. My aim here is not to rewrite `strace/strace/dtrace/gdb/rr` etc... You should totally use those for anything serious. 
+This is a toy project, I'll update it for as long as I find it useful and interesting. My aim here is not to rewrite `strace/strace/dtrace/gdb/rr` etc... You should totally use those for anything serious. 
 
