@@ -1,4 +1,5 @@
 ![Example Tests](https://github.com/caesurus/riptracer/actions/workflows/examples.yaml/badge.svg)
+![Unit Tests](https://github.com/caesurus/riptracer/actions/workflows/unittests.yaml/badge.svg)
 
 
 # riptracer
