@@ -6,5 +6,6 @@
 AUTHOR: SAMUEL
 
 Description
+
 In this [program](./vuln), identify the last integer value that is passed as parameter to the function `doNothing()`
 
