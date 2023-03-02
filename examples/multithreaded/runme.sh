@@ -28,6 +28,3 @@ fi
 
 echo "Run the application via start"
 ./tracer start --breakpoint "${OFFSET}" -c ./c_src/test_threads
-echo "Done"
-
-
