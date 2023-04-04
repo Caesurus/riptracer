@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/prometheus/procfs"
@@ -30,7 +29,7 @@ type BreakPoint struct {
 type Tracer struct {
 	Process          *os.Process
 	ProcFS           procfs.FS
-	ws               syscall.WaitStatus
+	ws               unix.WaitStatus
 	breakpoints      map[uintptr]*BreakPoint
 	threads          map[int]bool
 	ignoredPids      map[int]bool
@@ -69,9 +68,9 @@ func readBytesFromFile(filePath string, length int, offset int64) []byte {
 }
 
 func _attachToPid(pid int) (int, error) {
-	err := syscall.PtraceAttach(pid)
-	if err == syscall.EPERM {
-		_, err := syscall.PtraceGetEventMsg(pid)
+	err := unix.PtraceAttach(pid)
+	if err == unix.EPERM {
+		_, err := unix.PtraceGetEventMsg(pid)
 		if err != nil {
 			log.Fatalln("Permissions Error attaching to PID, please run as root, err message: ", err)
 			return 0, err
@@ -94,18 +93,18 @@ func NewTracerStartCommand(cmd_str string) (*Tracer, error) {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{Ptrace: true}
+	cmd.SysProcAttr = &unix.SysProcAttr{Ptrace: true}
 	check(cmd.Start())
 
 	cmd.Wait() //Ignore the error, we hit our starting breakpoint trap
 
-	check(syscall.PtraceSetOptions(cmd.Process.Pid, syscall.PTRACE_O_TRACECLONE))
+	check(unix.PtraceSetOptions(cmd.Process.Pid, unix.PTRACE_O_TRACECLONE))
 
 	log.Printf("CMD PID: %s : %v\n", cmd_str, cmd.Process.Pid)
-	syscall.PtraceSingleStep(cmd.Process.Pid)
+	unix.PtraceSingleStep(cmd.Process.Pid)
 
-	var ws syscall.WaitStatus
-	wpid, err := syscall.Wait4(cmd.Process.Pid, &ws, syscall.WALL, nil)
+	var ws unix.WaitStatus
+	wpid, err := unix.Wait4(cmd.Process.Pid, &ws, unix.WALL, nil)
 
 	// Add this pid to known threads. We need to continue this pid once breakpoints are set.
 	threads[wpid] = true
@@ -123,14 +122,14 @@ func NewTracerStartCommand(cmd_str string) (*Tracer, error) {
 		threads:          threads,
 		exeCompareLength: DEFAULTEXECMPLENGTH,
 		baseAddress:      0,
-		ptraceOptions:    syscall.PTRACE_O_TRACECLONE,
+		ptraceOptions:    unix.PTRACE_O_TRACECLONE,
 		ignoredPids:      make(map[int]bool),
 	}, nil
 
 }
 
 func NewTracerFromPid(pid int) (*Tracer, error) {
-	var ws syscall.WaitStatus
+	var ws unix.WaitStatus
 	runtime.LockOSThread()
 
 	procFS, err := procfs.NewFS("/proc")
@@ -154,7 +153,7 @@ func NewTracerFromPid(pid int) (*Tracer, error) {
 		threads:          make(map[int]bool),
 		exeCompareLength: DEFAULTEXECMPLENGTH,
 		baseAddress:      0,
-		ptraceOptions:    syscall.PTRACE_O_TRACECLONE,
+		ptraceOptions:    unix.PTRACE_O_TRACECLONE,
 		ignoredPids:      make(map[int]bool),
 	}
 
@@ -164,7 +163,7 @@ func NewTracerFromPid(pid int) (*Tracer, error) {
 		_attachToPid(p)
 
 		for {
-			_, err := syscall.Wait4(p, &ws, syscall.WALL, nil)
+			_, err := unix.Wait4(p, &ws, unix.WALL, nil)
 			if ws.Stopped() {
 				check(err)
 				break
@@ -186,9 +185,9 @@ func (t *Tracer) SetExeComparisonLength(length int) {
 func (t *Tracer) SetFollowForks(enable bool) {
 
 	if enable {
-		t.ptraceOptions = t.ptraceOptions | syscall.PTRACE_EVENT_FORK | syscall.PTRACE_EVENT_VFORK
+		t.ptraceOptions = t.ptraceOptions | unix.PTRACE_EVENT_FORK | unix.PTRACE_EVENT_VFORK
 	} else {
-		t.ptraceOptions = t.ptraceOptions & ^(syscall.PTRACE_EVENT_FORK | syscall.PTRACE_EVENT_VFORK)
+		t.ptraceOptions = t.ptraceOptions & ^(unix.PTRACE_EVENT_FORK | unix.PTRACE_EVENT_VFORK)
 	}
 
 	if t.verbose {
@@ -197,26 +196,26 @@ func (t *Tracer) SetFollowForks(enable bool) {
 
 }
 func (t *Tracer) Start() {
-	var ws syscall.WaitStatus
-	var regs syscall.PtraceRegs
+	var ws unix.WaitStatus
+	var regs unix.PtraceRegs
 
 	sig_chan := make(chan os.Signal, 1)
-	signal.Notify(sig_chan, syscall.SIGTERM)
-	signal.Notify(sig_chan, syscall.SIGINT)
+	signal.Notify(sig_chan, unix.SIGTERM)
+	signal.Notify(sig_chan, unix.SIGINT)
 
 	go func() {
 		for {
 			sig := <-sig_chan
 			switch sig {
-			case syscall.SIGINT:
+			case unix.SIGINT:
 				log.Println("Got SIGINT SIGNAL")
 				t.input()
 
-			case syscall.SIGTERM:
+			case unix.SIGTERM:
 				log.Println("Got SIGTERM SIGNAL")
 				shutdownFlag = true
 				//Send our main signal handler a USR2 signal, this will cause a blocking wait to return
-				syscall.Kill(t.Process.Pid, syscall.SIGUSR2)
+				unix.Kill(t.Process.Pid, unix.SIGUSR2)
 				// Give 5 seconds to shut down gracefully
 				time.Sleep(5 * time.Second)
 				log.Println("No exit detected yet, calling Exit")
@@ -229,9 +228,9 @@ func (t *Tracer) Start() {
 	t.continueAllThreads()
 
 	for {
-		var rusage syscall.Rusage
+		var rusage unix.Rusage
 		// Wait for any trap from any thread
-		wpid, err := syscall.Wait4(-1, &ws, syscall.WALL, &rusage)
+		wpid, err := unix.Wait4(-1, &ws, unix.WALL, &rusage)
 		if t.verbose {
 			log.Printf("PPID:%d / PID:%d wait4 returned... 0x%x, %v, %v, %v\n", t.Process.Pid, wpid, ws, ws.StopSignal(), ws.TrapCause(), err)
 			log.Printf("-> signal: 0x%x\n", (ws>>8)&0xFF)
@@ -244,14 +243,14 @@ func (t *Tracer) Start() {
 				breakPoint := t.breakpoints[b]
 				replaceCode(wpid, breakPoint.Address, *breakPoint.OriginalCode)
 			}
-			log.Printf("%sDetaching from Process...%s", Red, Reset)
-			syscall.PtraceDetach(t.Process.Pid)
-			os.Exit(0)
+			log.Printf("%sDetaching from Process...%s and return\n", Red, Reset)
+			unix.PtraceDetach(t.Process.Pid)
+			return
 		}
 
 		// Check whether it's a pid we're ignoring
 		if t.ignoredPids[wpid] {
-			check(syscall.PtraceCont(wpid, 0))
+			check(unix.PtraceCont(wpid, 0))
 			continue
 		}
 
@@ -272,7 +271,7 @@ func (t *Tracer) Start() {
 			delete(t.threads, wpid)
 			continue
 		}
-		err = syscall.PtraceGetRegs(wpid, &regs)
+		err = unix.PtraceGetRegs(wpid, &regs)
 		if err != nil {
 			log.Printf("Error (ptrace): %v", err)
 			continue
@@ -290,7 +289,7 @@ func (t *Tracer) Start() {
 			if t.verbose {
 				log.Printf("Ptrace exit event detected pid %v ", wpid)
 			}
-			check(syscall.PtraceCont(wpid, 0))
+			check(unix.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_CLONE << 8):
 			if t.verbose {
@@ -298,37 +297,37 @@ func (t *Tracer) Start() {
 			}
 			newPid := t.getEventMsg(wpid)
 			t.threads[int(newPid)] = true
-			check(syscall.PtraceCont(wpid, 0))
+			check(unix.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_FORK << 8):
 			if t.verbose {
 				log.Printf("PTrace fork event detected pid %v ", wpid)
 			}
-			check(syscall.PtraceCont(wpid, 0))
+			check(unix.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_VFORK << 8):
 			if t.verbose {
 				log.Printf("Ptrace vfork event detected pid %v ", wpid)
 			}
-			check(syscall.PtraceCont(wpid, 0))
+			check(unix.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_VFORK_DONE << 8):
 			if t.verbose {
 				log.Printf("Ptrace vfork done event detected pid %v ", wpid)
 			}
-			check(syscall.PtraceCont(wpid, 0))
+			check(unix.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_EXEC << 8):
 			if t.verbose {
 				log.Printf("Ptrace exec event detected pid %v ", wpid)
 			}
-			check(syscall.PtraceCont(wpid, 0))
+			check(unix.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_STOP << 8):
 			if t.verbose {
 				log.Printf("Ptrace stop event detected pid %v ", wpid)
 			}
-			check(syscall.PtraceCont(wpid, 0))
+			check(unix.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGTRAP):
 			if t.verbose {
@@ -344,7 +343,7 @@ func (t *Tracer) Start() {
 
 				replaceCode(wpid, breakPoint.Address, *breakPoint.OriginalCode)
 				regs.Rip = uint64(breakPoint.Address)
-				check(syscall.PtraceSetRegs(wpid, &regs))
+				check(unix.PtraceSetRegs(wpid, &regs))
 
 				// Call the callback print handlers
 				for idx := range breakPoint.Callbacks {
@@ -353,45 +352,45 @@ func (t *Tracer) Start() {
 				}
 
 				// we need to step forward once before setting the breakpoint again
-				check(syscall.PtraceSingleStep(wpid))
-				wpid, err = syscall.Wait4(wpid, &ws, syscall.WALL, nil)
+				check(unix.PtraceSingleStep(wpid))
+				wpid, err = unix.Wait4(wpid, &ws, unix.WALL, nil)
 				check(err)
 				// set the breakpoint back again
 				replaceCode(wpid, breakPoint.Address, []byte{0xCC})
 			} else {
 				//log.Printf("Got SIGTRAP without known Breakpoint at 0x%x\n", regs.Rip)
 			}
-			check(syscall.PtraceCont(wpid, 0))
+			check(unix.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGCHLD):
 			if t.verbose {
 				log.Printf("SIGCHLD detected pid %v ", wpid)
 			}
-			check(syscall.PtraceCont(wpid, 0))
+			check(unix.PtraceCont(wpid, 0))
 
 		case uint32(unix.SIGSTOP):
 			if t.verbose {
 				msg := t.getEventMsg(wpid)
 				log.Printf("SIGSTOP detected pid %v, msg: %v ", wpid, msg)
 			}
-			check(syscall.PtraceCont(wpid, 0))
+			check(unix.PtraceCont(wpid, 0))
 		case uint32(unix.SIGINT):
 			if wpid == t.Process.Pid {
 				log.Printf("SIGINT on PID %d, Start detaching and exit", wpid)
 				for p := range t.threads {
-					err = syscall.PtraceDetach(p)
+					err = unix.PtraceDetach(p)
 					log.Printf("PID %d Detach returned: %v", p, err)
 				}
 				os.Exit(0)
 			} else {
 				log.Printf("SIGINT on child PID %d", wpid)
-				check(syscall.PtraceCont(wpid, 0))
+				check(unix.PtraceCont(wpid, 0))
 			}
 
 		default:
 			y := ws.StopSignal()
 			log.Printf("Child stopped for unknown reasons pid %v status %v signal %d", wpid, ws, y)
-			check(syscall.PtraceCont(wpid, int(ws.StopSignal())))
+			check(unix.PtraceCont(wpid, int(ws.StopSignal())))
 		}
 
 	}
@@ -402,13 +401,13 @@ func (t *Tracer) continueAllThreads() {
 		if t.verbose {
 			log.Printf("Setting configuration on pid: %d", p)
 		}
-		check(syscall.PtraceSetOptions(p, t.ptraceOptions))
-		check(syscall.PtraceCont(p, 0))
+		check(unix.PtraceSetOptions(p, t.ptraceOptions))
+		check(unix.PtraceCont(p, 0))
 	}
 }
 
 func (*Tracer) getEventMsg(wpid int) uint {
-	msgID, err := syscall.PtraceGetEventMsg(wpid)
+	msgID, err := unix.PtraceGetEventMsg(wpid)
 	check(err)
 	return msgID
 }
@@ -463,11 +462,11 @@ func (t *Tracer) GetMemMaps() ([]*procfs.ProcMap, error) {
 
 func replaceCode(pid int, breakpoint uintptr, code []byte) []byte {
 	original := make([]byte, len(code))
-	_, err := syscall.PtracePeekData(pid, breakpoint, original)
+	_, err := unix.PtracePeekData(pid, breakpoint, original)
 	check(err)
 	//log.Printf("peek: cnt: %d, err: %v, original %v", cnt, err, original)
 
-	_, err = syscall.PtracePokeData(pid, breakpoint, code)
+	_, err = unix.PtracePokeData(pid, breakpoint, code)
 	//log.Printf("poke: cnt: %d, err: %v", cnt, err)
 	check(err)
 
@@ -513,6 +512,10 @@ func (t *Tracer) SetBreakpointRelative(breakAddress uintptr, cb CallBackFunction
 func (t *Tracer) SetBreakpointAbsolute(breakAddress uintptr, cb CallBackFunction) {
 	t.setBreakpoint(breakAddress, cb)
 }
+func (t *Tracer) Stop() {
+	shutdownFlag = true
+	unix.Kill(t.Process.Pid, unix.SIGUSR2)
+}
 
 func (t *Tracer) input() {
 	fmt.Printf("\n(C)ontinue, (I)gnore <thread/pid> or (Q)uit?\n")
@@ -535,8 +538,7 @@ func (t *Tracer) input() {
 					}
 				}
 			case "Q":
-				shutdownFlag = true
-				syscall.Kill(t.Process.Pid, syscall.SIGUSR2)
+				t.Stop()
 
 			default:
 				fmt.Printf("Unexpected input %s\n", input)

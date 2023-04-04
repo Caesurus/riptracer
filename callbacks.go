@@ -2,7 +2,8 @@ package riptracer
 
 import (
 	"fmt"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 var Reset = "\033[0m"
@@ -17,8 +18,8 @@ var White = "\033[97m"
 
 func CBPrintRegisters(pid int, bp BreakPoint) {
 	fmt.Println(Blue, "----------REGS----------", Reset)
-	var regs syscall.PtraceRegs
-	check(syscall.PtraceGetRegs(pid, &regs))
+	var regs unix.PtraceRegs
+	check(unix.PtraceGetRegs(pid, &regs))
 
 	fmt.Printf("%srax:%s 0x%012x (%d)%s\n", Blue, Green, regs.Rax, regs.Rax, Reset)
 	fmt.Printf("%srbx:%s 0x%012x (%d)%s\n", Blue, Green, regs.Rbx, regs.Rbx, Reset)
@@ -43,16 +44,16 @@ func CBPrintRegisters(pid int, bp BreakPoint) {
 
 func CBPrintStack(pid int, bp BreakPoint) {
 	fmt.Println(Blue, "----------STACK----------", Reset)
-	var regs syscall.PtraceRegs
-	check(syscall.PtraceGetRegs(pid, &regs))
+	var regs unix.PtraceRegs
+	check(unix.PtraceGetRegs(pid, &regs))
 
 	data := make([]byte, 0x30)
-	syscall.PtracePeekData(pid, uintptr(regs.Rsp), data)
+	unix.PtracePeekData(pid, uintptr(regs.Rsp), data)
 	Dump(data)
 }
 
 func CBFunctionArgs(pid int, bp BreakPoint) {
-	var regs syscall.PtraceRegs
-	check(syscall.PtraceGetRegs(pid, &regs))
+	var regs unix.PtraceRegs
+	check(unix.PtraceGetRegs(pid, &regs))
 	fmt.Printf("%sThread: %d: arg1: 0x%012x arg2: 0x%012x arg3: 0x%012x %s\n", Green, pid, regs.Rdi, regs.Rsi, regs.Rdx, Reset)
 }
