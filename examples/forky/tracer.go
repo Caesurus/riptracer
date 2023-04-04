@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/akamensky/argparse"
 	"github.com/caesurus/riptracer"
@@ -19,7 +20,7 @@ func check(err error) {
 
 func ReadMem(pid int, addr uintptr, length int) []byte {
 	data := make([]byte, length)
-	_, err := syscall.PtracePeekData(pid, addr, data)
+	_, err := unix.PtracePeekData(pid, addr, data)
 	if err != nil {
 		fmt.Printf("Error reading memory at 0x%012x\n", addr)
 	}
@@ -33,8 +34,8 @@ func Read32bitValue(pid int, addr uintptr) uint32 {
 }
 
 func CBFuncCalls(pid int, bp riptracer.BreakPoint) {
-	var regs syscall.PtraceRegs
-	check(syscall.PtraceGetRegs(pid, &regs))
+	var regs unix.PtraceRegs
+	check(unix.PtraceGetRegs(pid, &regs))
 	fmt.Printf("pid:%d -> doNothing called with arg: %d\n", pid, int32(regs.Rax))
 }
 

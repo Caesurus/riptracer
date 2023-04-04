@@ -7,18 +7,18 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"syscall"
 
 	"github.com/akamensky/argparse"
 	"github.com/caesurus/riptracer"
+	"golang.org/x/sys/unix"
 )
 
 var g_cnt = 0
 var g_serial []int32
 
 func CBKeyBreakPoint(pid int, bp riptracer.BreakPoint) {
-	var regs syscall.PtraceRegs
-	err := syscall.PtraceGetRegs(pid, &regs)
+	var regs unix.PtraceRegs
+	err := unix.PtraceGetRegs(pid, &regs)
 	if err != nil {
 		log.Fatalln("Error", err)
 	}
