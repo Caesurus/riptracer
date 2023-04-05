@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -13,15 +14,21 @@ import (
 )
 
 var gHit = 0
+var gHitHW = 0
 
 func CBHits(pid int, bp riptracer.BreakPoint) {
 	gHit += 1
+}
+func CBHWHits(pid int, bp riptracer.BreakPoint) {
+	log.Printf("HW Callback Called")
+	gHitHW += 1
 }
 
 func main() {
 	parser := argparse.NewParser("tracer", "General tracer")
 	var verbose *bool = parser.Flag("v", "verbose", &argparse.Options{Help: "Verbose Output"})
 	var breakPointStr *string = parser.String("b", "breakpoint", &argparse.Options{Required: true, Help: "Breakpoint in hex"})
+	var hwbreakPointStr *string = parser.String("w", "hwbreakpoint", &argparse.Options{Required: true, Help: "HWBreakpoint in hex"})
 
 	startCmd := parser.NewCommand("start", "Will start a process")
 	var cmd_str *string = startCmd.String("c", "cmd", &argparse.Options{Required: true, Help: "Cmd to execute"})
@@ -57,14 +64,30 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	hwbreakPointInt, err := strconv.ParseInt(*hwbreakPointStr, 16, 64)
+	fmt.Println(hwbreakPointInt)
+	if err != nil {
+		panic(err)
+	}
 	tracer.SetBreakpointRelative(uintptr(breakPointInt), riptracer.CBPrintRegisters)
 	tracer.SetBreakpointRelative(uintptr(breakPointInt), riptracer.CBPrintStack)
 	tracer.SetBreakpointRelative(uintptr(breakPointInt), riptracer.CBFunctionArgs)
 	tracer.SetBreakpointRelative(uintptr(breakPointInt), CBHits)
+
+	tracer.SetHWBreakpointRelative(uintptr(hwbreakPointInt), CBHWHits)
+	tracer.SetHWBreakpointRelative(uintptr(hwbreakPointInt), riptracer.CBFunctionArgs)
+
 	tracer.Start()
+
+	fmt.Printf("Hit SW: %d / HW: %d times\n", gHit, gHitHW)
 
 	if gHit == 0 {
 		os.Exit(1)
+	}
+
+	if gHitHW == 0 {
+		os.Exit(2)
 	}
 
 }

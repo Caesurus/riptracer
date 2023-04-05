@@ -31,6 +31,7 @@ type Tracer struct {
 	ProcFS           procfs.FS
 	ws               unix.WaitStatus
 	breakpoints      map[uintptr]*BreakPoint
+	hwbreakpoints    map[uintptr]*BreakPoint
 	threads          map[int]bool
 	ignoredPids      map[int]bool
 	verbose          bool
@@ -119,6 +120,7 @@ func NewTracerStartCommand(cmd_str string) (*Tracer, error) {
 		Process:          cmd.Process,
 		ProcFS:           procFS,
 		breakpoints:      make(map[uintptr]*BreakPoint),
+		hwbreakpoints:    make(map[uintptr]*BreakPoint, 1),
 		threads:          threads,
 		exeCompareLength: DEFAULTEXECMPLENGTH,
 		baseAddress:      0,
@@ -150,6 +152,7 @@ func NewTracerFromPid(pid int) (*Tracer, error) {
 		Process:          proc,
 		ProcFS:           procFS,
 		breakpoints:      make(map[uintptr]*BreakPoint),
+		hwbreakpoints:    make(map[uintptr]*BreakPoint, 1),
 		threads:          make(map[int]bool),
 		exeCompareLength: DEFAULTEXECMPLENGTH,
 		baseAddress:      0,
@@ -266,11 +269,15 @@ func (t *Tracer) Start() {
 			}
 			continue
 		}
+
 		if ws.Signaled() == true {
-			log.Printf("Error: Other pid signalled %v %v", wpid, ws)
+			if t.verbose {
+				log.Printf("Error: Other pid(%v) signalled %v", wpid, ws)
+			}
 			delete(t.threads, wpid)
 			continue
 		}
+
 		err = unix.PtraceGetRegs(wpid, &regs)
 		if err != nil {
 			log.Printf("Error (ptrace): %v", err)
@@ -278,7 +285,6 @@ func (t *Tracer) Start() {
 		}
 
 		switch uint32(ws) >> 8 {
-
 		case uint32(unix.SIGTRAP) | (unix.PTRACE_EVENT_SECCOMP << 8):
 			if err != nil {
 				log.Printf("Error (ptrace): %v", err)
@@ -331,8 +337,23 @@ func (t *Tracer) Start() {
 
 		case uint32(unix.SIGTRAP):
 			if t.verbose {
-				log.Printf("SIGTRAP detected in pid %v ", wpid)
+				log.Printf("SIGTRAP/Breakpoint detected in pid %v ", wpid)
 			}
+
+			breakPoint, hwOk := t.hwbreakpoints[uintptr(regs.Rip)]
+			if hwOk {
+				breakPoint.Hits += 1
+				if t.verbose {
+					msgId := t.getEventMsg(wpid)
+					log.Printf("PID: %d (msg:%d) Hit Breakpoint at 0x%x (%d times)", wpid, msgId, breakPoint.Address, breakPoint.Hits)
+				}
+				// Call the callback print handlers
+				for idx := range breakPoint.Callbacks {
+					cb := breakPoint.Callbacks[idx]
+					cb(wpid, *breakPoint)
+				}
+			}
+
 			breakPoint, ok := t.breakpoints[uintptr(regs.Rip)-1]
 			if ok {
 				breakPoint.Hits += 1
@@ -358,7 +379,9 @@ func (t *Tracer) Start() {
 				// set the breakpoint back again
 				replaceCode(wpid, breakPoint.Address, []byte{0xCC})
 			} else {
-				//log.Printf("Got SIGTRAP without known Breakpoint at 0x%x\n", regs.Rip)
+				if t.verbose {
+					log.Printf("Got SIGTRAP without known Breakpoint at 0x%x\n", regs.Rip)
+				}
 			}
 			check(unix.PtraceCont(wpid, 0))
 
@@ -504,6 +527,53 @@ func (t *Tracer) setBreakpoint(breakAddress uintptr, cb CallBackFunction) {
 	return
 }
 
+// https://en.wikipedia.org/wiki/X86_debug_register
+const DR_OFFSET = 0x350
+const REG_SIZE = 0x8
+
+func (t *Tracer) setHWBreakpoint(breakAddress uintptr, cb CallBackFunction) {
+	/* Experimental code for setting HW breakpoints on x86_64...
+	   Notes:
+		- Only one breakpoint is supported at the moment, even though the processor supports up to 4 (I'm lazy and don't want to support adding multiple)
+		- DR0 doesn't seem to work, so using DR1
+		- Even though we're setting this as a Global enable for breakpoint #1, it is still only per thread
+	      this means we need to set the hw breakpoint on other threads when they are created... painful, so not implemented yet
+		- Don't have cleanup when detaching
+	*/
+	bp := breakAddress
+	breakpoint, ok := t.hwbreakpoints[bp]
+
+	if !ok && 0 < len(t.hwbreakpoints) {
+		log.Println("Sorry, only a single HW breakpoint is supported, and it's already set")
+		return
+	}
+
+	if ok {
+		log.Printf("HWBreakpoint at 0x%x already set, adding cb...", bp)
+		breakpoint.Callbacks = append(breakpoint.Callbacks, cb)
+	} else {
+		log.Printf("Setting Hardware Breakpoint at 0x%x", bp)
+		_, err := unix.PtracePokeUser(t.Process.Pid, uintptr(DR_OFFSET+(REG_SIZE*1)), uintptrToBytes(bp))
+		check(err)
+		_, err = unix.PtracePokeUser(t.Process.Pid, uintptr(DR_OFFSET+(REG_SIZE*6)), uintptrToBytes(0))
+		check(err)
+
+		var dr7 uintptr = 0
+		// Request exact breakpoints (even though we're not 80386, recommended practice is to set these)
+		dr7 |= (1 << 8) + (1 << 9)
+		// Global enable for breakpoint #1.
+		dr7 |= (1 << 3)
+		_, err = unix.PtracePokeUser(t.Process.Pid, uintptr(DR_OFFSET+(REG_SIZE*7)), uintptrToBytes(dr7))
+
+		callBacks := make([]CallBackFunction, 0)
+		callBacks = append(callBacks, cb)
+
+		t.hwbreakpoints[bp] = &BreakPoint{Address: bp, OriginalCode: nil, Hits: 0, Callbacks: callBacks}
+	}
+
+	return
+}
+
 func (t *Tracer) SetBreakpointRelative(breakAddress uintptr, cb CallBackFunction) {
 	bp := t.ConvertOffsetToAddress(breakAddress)
 	t.setBreakpoint(bp, cb)
@@ -512,6 +582,16 @@ func (t *Tracer) SetBreakpointRelative(breakAddress uintptr, cb CallBackFunction
 func (t *Tracer) SetBreakpointAbsolute(breakAddress uintptr, cb CallBackFunction) {
 	t.setBreakpoint(breakAddress, cb)
 }
+
+func (t *Tracer) SetHWBreakpointRelative(breakAddress uintptr, cb CallBackFunction) {
+	bp := t.ConvertOffsetToAddress(breakAddress)
+	t.setHWBreakpoint(bp, cb)
+}
+
+func (t *Tracer) SetHWBreakpointAbsolute(breakAddress uintptr, cb CallBackFunction) {
+	t.setHWBreakpoint(breakAddress, cb)
+}
+
 func (t *Tracer) Stop() {
 	shutdownFlag = true
 	unix.Kill(t.Process.Pid, unix.SIGUSR2)

@@ -1,10 +1,13 @@
 package riptracer
 
 import (
+	"encoding/binary"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
+	"unsafe"
 )
 
 func findNamedMatches(regex *regexp.Regexp, str string) map[string]string {
@@ -79,4 +82,18 @@ func viewString(b []byte) string {
 		}
 	}
 	return string(r)
+}
+
+func uintptrToBytes(ptr uintptr) []byte {
+	bytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bytes, uint64(ptr))
+	return bytes
+}
+
+func bytesToUint64(b []byte) uint64 {
+	var val uint64
+	header := (*reflect.SliceHeader)(unsafe.Pointer(&b))
+	valPtr := (*uint64)(unsafe.Pointer(header.Data))
+	val = *valPtr
+	return val
 }
