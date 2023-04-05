@@ -20,6 +20,7 @@ func CBHits(pid int, bp riptracer.BreakPoint) {
 	gHit += 1
 }
 func CBHWHits(pid int, bp riptracer.BreakPoint) {
+	log.Printf("HW Callback Called")
 	gHitHW += 1
 }
 
