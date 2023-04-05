@@ -8,6 +8,8 @@ echo "Compiling C application"
 make clean && make 
 
 OFFSET=$(objdump -D test_threads|grep \<fflush@plt\>|grep call|cut -d ':' -f1|xargs)
+OFFSET=$(objdump -D test_threads|grep \<foo\>:|cut -d ' ' -f1|xargs)
+FOO2OFFSET=$(objdump -D test_threads|grep \<foo2\>:|cut -d ' ' -f1|xargs)
 
 cd ${SCRIPT_DIR}
 rm -rf go.mod go.sum
@@ -27,4 +29,4 @@ if [ "$EUID" -eq 0 ]; then
 fi
 
 echo "Run the application via start"
-./tracer start --breakpoint "${OFFSET}" -c ./c_src/test_threads
+./tracer start --breakpoint "${OFFSET}" --hwbreakpoint "${FOO2OFFSET}" -c ./c_src/test_threads
