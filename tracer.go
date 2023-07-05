@@ -38,6 +38,7 @@ type Tracer struct {
 	exeCompareLength int
 	baseAddress      uintptr
 	ptraceOptions    int
+	interactive      bool
 }
 
 func check(err error) {
@@ -126,6 +127,7 @@ func NewTracerStartCommand(cmd_str string) (*Tracer, error) {
 		baseAddress:      0,
 		ptraceOptions:    unix.PTRACE_O_TRACECLONE,
 		ignoredPids:      make(map[int]bool),
+		interactive:      false,
 	}, nil
 
 }
@@ -158,6 +160,7 @@ func NewTracerFromPid(pid int) (*Tracer, error) {
 		baseAddress:      0,
 		ptraceOptions:    unix.PTRACE_O_TRACECLONE,
 		ignoredPids:      make(map[int]bool),
+		interactive:      false,
 	}
 
 	for i := range all_pids {
@@ -198,6 +201,19 @@ func (t *Tracer) SetFollowForks(enable bool) {
 	}
 
 }
+func (t *Tracer) SetInteractive(enable bool) {
+
+	if enable {
+		t.interactive = true
+	} else {
+		t.interactive = false
+	}
+
+	if t.verbose {
+		log.Printf("Interactive: %t", t.interactive)
+	}
+
+}
 func (t *Tracer) Start() {
 	var ws unix.WaitStatus
 	var regs unix.PtraceRegs
@@ -212,13 +228,15 @@ func (t *Tracer) Start() {
 			switch sig {
 			case unix.SIGINT:
 				log.Println("Got SIGINT SIGNAL")
-				t.input()
+				if t.interactive {
+					t.input()
+				} else {
+					t.Stop()
+				}
 
 			case unix.SIGTERM:
 				log.Println("Got SIGTERM SIGNAL")
-				shutdownFlag = true
-				//Send our main signal handler a USR2 signal, this will cause a blocking wait to return
-				unix.Kill(t.Process.Pid, unix.SIGUSR2)
+				t.Stop()
 				// Give 5 seconds to shut down gracefully
 				time.Sleep(5 * time.Second)
 				log.Println("No exit detected yet, calling Exit")
