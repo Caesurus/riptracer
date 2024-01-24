@@ -36,7 +36,7 @@ func Read32bitValue(pid int, addr uintptr) uint32 {
 func CBFuncCalls(pid int, bp riptracer.BreakPoint) {
 	var regs unix.PtraceRegs
 	check(unix.PtraceGetRegs(pid, &regs))
-	fmt.Printf("pid:%d -> doNothing called with arg: %d\n", pid, int32(regs.Rax))
+	fmt.Printf("pid:%d -> doNothing called with arg: %d\n", pid, int32(regs.Eax))
 }
 
 func main() {

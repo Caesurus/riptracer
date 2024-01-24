@@ -10,7 +10,8 @@ go mod edit -replace github.com/caesurus/riptracer=../../../riptracer
 go mod tidy
 go clean 
 echo "Building go code"
-go build
+GOARCH=386 GOOS=linux go clean
+GOARCH=386 GOOS=linux go build
 
 echo "Run the application via start"
 ./tracer start -c ./vuln
