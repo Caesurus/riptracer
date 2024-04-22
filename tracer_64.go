@@ -527,6 +527,11 @@ func (t *Tracer) ConvertOffsetToAddress(breakAddress uintptr) uintptr {
 	return bp
 }
 
+func (t *Tracer) existsBreakpoint(breakAddress uintptr) bool {
+	_, ok := t.breakpoints[breakAddress]
+	return ok
+}
+
 func (t *Tracer) setBreakpoint(breakAddress uintptr, cb CallBackFunction) {
 	bp := breakAddress
 
@@ -593,6 +598,15 @@ func (t *Tracer) setHWBreakpoint(breakAddress uintptr, cb CallBackFunction) {
 	}
 
 	return
+}
+
+func (t *Tracer) ExistsBreakpointRelative(breakAddress uintptr) bool {
+	bp := t.ConvertOffsetToAddress(breakAddress)
+	return t.existsBreakpoint(bp)
+}
+
+func (t *Tracer) ExistsSetBreakpointAbsolute(breakAddress uintptr) bool {
+	return t.existsBreakpoint(breakAddress)
 }
 
 func (t *Tracer) SetBreakpointRelative(breakAddress uintptr, cb CallBackFunction) {

@@ -1,3 +1,6 @@
+//go:build amd64
+// +build amd64
+
 package riptracer
 
 import (
@@ -21,17 +24,6 @@ type ELF64_Rela struct {
 	R_addend int64
 }
 
-type ELF32_Rela_Info struct {
-	Type uint32
-	Sym  uint32
-}
-
-type ELF32_Rela struct {
-	R_offset uint32
-	R_info   ELF32_Rela_Info
-	R_addend int32
-}
-
 func parseELF64RelaEntry(data []byte) (ELF64_Rela, error) {
 	var rela ELF64_Rela
 	var relaSize = int(unsafe.Sizeof(rela))
@@ -39,26 +31,34 @@ func parseELF64RelaEntry(data []byte) (ELF64_Rela, error) {
 	err := binary.Read(buf, binary.LittleEndian, &rela)
 	return rela, err
 }
-func parsePlt(f *elf.File) []elf.Symbol {
+
+func parsePlt(f *elf.File, demangleArguments bool) []elf.Symbol {
 	plt := make([]elf.Symbol, 0)
 
 	dynSyms, err := f.DynamicSymbols()
 	check(err)
 
 	rpSec := f.Section(".rela.plt")
+
 	cnt := 0
 	data, err := rpSec.Data()
 	check(err)
 
 	for cnt = 0; cnt < int(rpSec.Size); cnt += int(rpSec.Entsize) {
 		rela, err := parseELF64RelaEntry(data[cnt:])
+
 		if err != nil {
 			break
 		}
-
 		idx := rela.R_info.Sym - 1
 		sym := dynSyms[idx]
-		demangledName, err := demangle.ToString(sym.Name, demangle.Option(demangle.NoParams), demangle.Option(demangle.NoTemplateParams), demangle.Option(demangle.LLVMStyle))
+		var demangledName string
+		if demangleArguments{
+			demangledName, err = demangle.ToString(sym.Name, demangle.Option(demangle.NoTemplateParams), demangle.Option(demangle.LLVMStyle))
+		}else{
+			demangledName, err = demangle.ToString(sym.Name, demangle.Option(demangle.NoParams), demangle.Option(demangle.NoTemplateParams), demangle.Option(demangle.LLVMStyle))
+		}
+
 		if err != nil {
 			demangledName = sym.Name
 		}
@@ -71,9 +71,10 @@ func parsePlt(f *elf.File) []elf.Symbol {
 type SymbolResolver struct {
 	PLT        []elf.Symbol
 	pltSection *elf.Section
+	demangleArguments bool
 }
 
-func NewSymbolResolver(filepath string) (*SymbolResolver, error) {
+func NewSymbolResolver(filepath string, demangleArguments bool) (*SymbolResolver, error) {
 	f, err := elf.Open(filepath)
 	if err != nil {
 		return nil, err
@@ -82,11 +83,11 @@ func NewSymbolResolver(filepath string) (*SymbolResolver, error) {
 
 	pltSect := f.Section(".plt")
 	if pltSect == nil {
-		return nil, fmt.Errorf("Couldn't find dynstr")
+		return nil, fmt.Errorf("couldn't find dynstr")
 	}
 
-	s := SymbolResolver{pltSection: pltSect}
-	s.PLT = parsePlt(f)
+	s := SymbolResolver{pltSection: pltSect, demangleArguments: demangleArguments}
+	s.PLT = parsePlt(f, demangleArguments)
 	return &s, nil
 }
 
