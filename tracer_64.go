@@ -430,7 +430,9 @@ func (t *Tracer) Start() {
 				log.Printf("SIGINT on child PID %d", wpid)
 				check(unix.PtraceCont(wpid, 0))
 			}
-
+		case uint32(unix.SIGSEGV):
+			CBPrintRegisters(wpid, BreakPoint{})
+			check(unix.PtraceCont(wpid, int(ws.StopSignal())))
 		default:
 			y := ws.StopSignal()
 			log.Printf("Child stopped for unknown reasons pid %v status %v signal %d", wpid, ws, y)
