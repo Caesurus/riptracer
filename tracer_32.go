@@ -432,6 +432,7 @@ func (t *Tracer) Start() {
 			}
 		case uint32(unix.SIGSEGV):
 			CBPrintRegisters(wpid, BreakPoint{})
+			t.Stop()
 			check(unix.PtraceCont(wpid, int(ws.StopSignal())))
 		default:
 			y := ws.StopSignal()
