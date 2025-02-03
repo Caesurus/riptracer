@@ -48,6 +48,7 @@ func Dump(buff []byte) {
 	rowcount := 0
 	stop := (n / 16) * 16
 	cnt := 0
+	fmt.Printf(" ")
 	for i := 0; i <= stop; i += 16 {
 		cnt++
 
@@ -73,7 +74,7 @@ func Dump(buff []byte) {
 		fmt.Printf("  ")
 
 		fmt.Printf(Reset)
-		fmt.Printf("  '%s'\n", viewString(buff[i:(i+rowcount)]))
+		fmt.Printf("  '%s'\n ", viewString(buff[i:(i+rowcount)]))
 	}
 }
 

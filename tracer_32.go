@@ -191,19 +191,19 @@ func (t *Tracer) EnableVerbose() {
 func (t *Tracer) SetExeComparisonLength(length int) {
 	t.exeCompareLength = length
 }
-func (t *Tracer) SetFollowForks(enable bool) {
 
+func (t *Tracer) SetFollowForks(enable bool) {
 	if enable {
-		t.ptraceOptions = t.ptraceOptions | unix.PTRACE_EVENT_FORK | unix.PTRACE_EVENT_VFORK
+		t.ptraceOptions = t.ptraceOptions | unix.PTRACE_O_TRACEFORK | unix.PTRACE_O_TRACEVFORK | unix.PTRACE_O_TRACEEXEC
 	} else {
-		t.ptraceOptions = t.ptraceOptions & ^(unix.PTRACE_EVENT_FORK | unix.PTRACE_EVENT_VFORK)
+		t.ptraceOptions = t.ptraceOptions & ^(unix.PTRACE_O_TRACEFORK | unix.PTRACE_O_TRACEVFORK | unix.PTRACE_O_TRACEEXEC)
 	}
 
 	if t.verbose {
 		log.Printf("SetFollowForks: %t, 0x%x", enable, t.ptraceOptions)
 	}
-
 }
+
 func (t *Tracer) SetInteractive(enable bool) {
 
 	if enable {
@@ -434,6 +434,9 @@ func (t *Tracer) Start() {
 			CBPrintRegisters(wpid, BreakPoint{})
 			t.Stop()
 			check(unix.PtraceCont(wpid, int(ws.StopSignal())))
+		case uint32(unix.SIGPIPE):
+			log.Printf("SIGPIPE detected pid %v ", wpid)
+			check(unix.PtraceCont(wpid, int(ws.StopSignal())))
 		default:
 			y := ws.StopSignal()
 			log.Printf("Child stopped for unknown reasons pid %v status %v signal %d", wpid, ws, y)
@@ -544,7 +547,7 @@ func (t *Tracer) setBreakpoint(breakAddress uintptr, cb CallBackFunction) {
 		log.Printf("Breakpoint at 0x%x already set, adding cb...", bp)
 		breakpoint.Callbacks = append(breakpoint.Callbacks, cb)
 	} else {
-		log.Printf("Setting Breakpoint at 0x%x", bp)
+		//log.Printf("Setting Breakpoint at 0x%x", bp)
 		org := replaceCode(t.Process.Pid, bp, []byte{0xCC})
 
 		callBacks := make([]CallBackFunction, 0)
